@@ -2,6 +2,7 @@
 name = "outputter"
 version = "0.1.0"
 edition = "2021"
+default-run = "outputter"
 
 [dependencies]
 ratatui = "0.28.0"
