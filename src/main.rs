@@ -10,7 +10,7 @@ use ratatui::{
     },
     prelude::*,
     style::Stylize,
-    widgets::{block::Title, Block, Row, Table},
+    widgets::{block::Title, Block, Row, Table, TableState},
     Terminal,
 };
 use symbols::border;
@@ -48,6 +48,10 @@ async fn main() -> Result<()> {
     let cmd_stderr_handle = cmd.stderr.unwrap();
 
     let cmd_bursts = std::sync::Mutex::new(Vec::<Burst>::new());
+    let mut table_state = TableState::default();
+
+    // We need a scope share `cmd_bursts between the future appending to it, and the UI reading from it
+    // Without scope, it would fail with 'Closure may outlive the current function, but it borrows `cmd_bursts`, which is owned by the current function' because aysnc block always borrow for 'static
     let scope_result = async_scoped::TokioScope::scope_and_block(|s| -> Result<()> {
         s.spawn_cancellable(
             async {
@@ -85,53 +89,59 @@ async fn main() -> Result<()> {
             terminal.draw(|frame| {
                 let binding = cmd_bursts.lock().unwrap();
                 let rows = binding.iter().map(|b| {
-                    let duration_since_cmd_start: String =
-                        b.timestamp.duration_since(cmd_start).as_secs().to_string();
-                    let duration_since_cmd_start: Cow<str> = Cow::Owned(duration_since_cmd_start);
+                    let duration_since_cmd_start: Cow<str> =
+                        Cow::Owned(b.timestamp.duration_since(cmd_start).as_secs().to_string());
                     Row::new(vec![
                         duration_since_cmd_start,
                         Cow::Borrowed(&b.stdout),
                         Cow::Borrowed(&b.stderr),
                     ])
                 });
-                // Columns widths are constrained in the same way as Layout...
                 let widths = [
                     Constraint::Length(10),
                     Constraint::Fill(1),
                     Constraint::Fill(1),
                 ];
+                // TODO: add border between columns
+                // See https://github.com/ratatui/ratatui/issues/604
                 let table = Table::new(rows, widths)
                     // ...and they can be separated by a fixed spacing.
                     .column_spacing(2)
                     // You can set the style of the entire Table.
                     // .style(Style::new().blue())
-                    // It has an optional header, which is simply a Row always visible at the top.
                     .header(
                         Row::new(vec!["Timestamp", "Stdout", "Stderr"])
                             .style(Style::new().bold())
-                            // To add space between the header and the rest of the rows, specify the margin
                             .bottom_margin(1),
                     )
-                    // It has an optional footer, which is simply a Row always visible at the bottom.
-                    .footer(Row::new(vec!["Updated on Dec 28"]))
-                    // As any other widget, a Table can be wrapped in a Block.
                     .block(
                         Block::bordered()
-                            .title(Title::from("Outputter").alignment(Alignment::Center))
+                            .title(Title::from(" Outputter ").alignment(Alignment::Center))
                             .border_set(border::THICK),
                     )
                     // The selected row and its content can also be styled.
                     .highlight_style(Style::new().reversed())
                     // ...and potentially show a symbol in front of the selection.
-                    .highlight_symbol(">>");
-                frame.render_widget(table, frame.area());
+                    .highlight_symbol("> ");
+                frame.render_stateful_widget(table, frame.area(), &mut table_state);
             })?;
 
             if event::poll(std::time::Duration::from_millis(16))? {
                 if let event::Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                        s.cancel();
-                        break;
+                    if key.kind == KeyEventKind::Press {
+                        match key.code {
+                            KeyCode::Char('q') => {
+                                s.cancel();
+                                break;
+                            }
+                            KeyCode::Up => {
+                                table_state.select_previous();
+                            }
+                            KeyCode::Down => {
+                                table_state.select_next();
+                            }
+                            _ => (),
+                        }
                     }
                 }
             }
