@@ -1,5 +1,5 @@
 {
-  description = "A devShell example";
+  description = "Outputter: show a program output by splitting stdout and stderr";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

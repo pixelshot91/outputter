@@ -9,6 +9,11 @@ $ nix run github:pixelshot91/outputter -- echo a
 ```
 or replace `echo a` with any command you want.
 
+By default, nix cache the code from github 1 hour. If the master has been pushed less than one hour, you can clear the cache with
+```shell
+$ nix run --tarball-ttl 0 github:pixelshot91/outputter
+```
+
 ## Demo
 1. This project is package with Nix Flakes. You can use `nix develop` to drop into a shell with all the necessary dependency (for now, just the Rust toolchain).
 ```shell
