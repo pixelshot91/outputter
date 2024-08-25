@@ -1,10 +1,14 @@
-use std::{thread::sleep, time::{Duration, Instant}};
+use std::{
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 fn main() {
+    let duration = Duration::from_secs(3);
     loop {
         println!("stdout: {:?}", Instant::now());
-        sleep(Duration::from_secs(1));
+        sleep(duration);
         eprintln!("stderr: {:?}", Instant::now());
-        sleep(Duration::from_secs(1));
+        sleep(duration);
     }
 }
