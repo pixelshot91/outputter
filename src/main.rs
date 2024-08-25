@@ -10,7 +10,7 @@ use ratatui::{
     },
     prelude::*,
     style::Stylize,
-    widgets::{block::Title, Block, Paragraph, Row, Table},
+    widgets::{block::Title, Block, Row, Table},
     Terminal,
 };
 use symbols::border;
@@ -59,6 +59,22 @@ async fn main() -> Result<()> {
                         timestamp: Instant::now(),
                         stdout,
                         stderr: String::new(),
+                    });
+                }
+            },
+            || {},
+        );
+
+        s.spawn_cancellable(
+            async {
+                let mut bf = BufReader::new(cmd_stderr_handle).lines();
+                loop {
+                    let stderr = bf.next_line().await.unwrap().unwrap();
+
+                    cmd_bursts.lock().unwrap().push(Burst {
+                        timestamp: Instant::now(),
+                        stdout: String::new(),
+                        stderr,
                     });
                 }
             },
@@ -114,34 +130,14 @@ async fn main() -> Result<()> {
             if event::poll(std::time::Duration::from_millis(16))? {
                 if let event::Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                        terminal
-                            .draw(|frame| {
-                                frame.render_widget(Paragraph::new("Exited"), frame.area());
-                            })
-                            .unwrap();
                         s.cancel();
-                        terminal
-                            .draw(|frame| {
-                                frame.render_widget(Paragraph::new("Cancelled"), frame.area());
-                            })
-                            .unwrap();
                         break;
                     }
                 }
             }
         }
-        terminal
-            .draw(|frame| {
-                frame.render_widget(Paragraph::new("returning ok"), frame.area());
-            })
-            .unwrap();
         Ok(())
     });
-    terminal
-        .draw(|frame| {
-            frame.render_widget(Paragraph::new("OOutside of async_scoped"), frame.area());
-        })
-        .unwrap();
     scope_result.0.unwrap();
 
     std::io::stdout().execute(LeaveAlternateScreen)?;
