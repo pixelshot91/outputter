@@ -14,6 +14,11 @@ By default, nix cache the code from github 1 hour. If the master has been pushed
 $ nix run --tarball-ttl 0 github:pixelshot91/outputter
 ```
 
+You can check that the revision used by nix is the correct one
+```shell
+$ nix flake metadata --json github:pixelshot91/outputter | jq .locked.rev
+```
+
 ## Demo
 1. This project is package with Nix Flakes. You can use `nix develop` to drop into a shell with all the necessary dependency (for now, just the Rust toolchain).
 ```shell
