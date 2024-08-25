@@ -1,3 +1,5 @@
+mod helper;
+
 use core::str;
 use std::{borrow::Cow, io::Result, process::Stdio, time::Instant};
 
@@ -27,15 +29,15 @@ async fn main() -> Result<()> {
     let mut args = std::env::args();
 
     let _this_cmd = args.next();
-    let cmd = args.next().expect("No cmd given");
+    let cmd_name = args.next().expect("No cmd given");
     let cmd_args = args;
 
-    let cmd = tokio::process::Command::new(cmd)
+    let mut cmd = tokio::process::Command::new(&cmd_name)
         .args(cmd_args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .unwrap();
+        .expect(&format!("Could not launch command '{cmd_name}'"));
 
     let cmd_start = Instant::now();
 
@@ -44,8 +46,8 @@ async fn main() -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
     terminal.clear()?;
 
-    let cmd_stdout_handle = cmd.stdout.unwrap();
-    let cmd_stderr_handle = cmd.stderr.unwrap();
+    let cmd_stdout_handle = cmd.stdout.take().unwrap();
+    let cmd_stderr_handle = cmd.stderr.take().unwrap();
 
     let cmd_bursts = std::sync::Mutex::new(Vec::<Burst>::new());
     let mut table_state = TableState::default();
@@ -57,13 +59,16 @@ async fn main() -> Result<()> {
             async {
                 let mut bf = BufReader::new(cmd_stdout_handle).lines();
                 loop {
-                    let stdout = bf.next_line().await.unwrap().unwrap();
-
-                    cmd_bursts.lock().unwrap().push(Burst {
-                        timestamp: Instant::now(),
-                        stdout,
-                        stderr: String::new(),
-                    });
+                    let stdout = bf.next_line().await.unwrap();
+                    if let Some(stdout) = stdout {
+                        cmd_bursts.lock().unwrap().push(Burst {
+                            timestamp: Instant::now(),
+                            stdout,
+                            stderr: String::new(),
+                        });
+                    } else {
+                        break;
+                    }
                 }
             },
             || {},
@@ -73,18 +78,21 @@ async fn main() -> Result<()> {
             async {
                 let mut bf = BufReader::new(cmd_stderr_handle).lines();
                 loop {
-                    let stderr = bf.next_line().await.unwrap().unwrap();
+                    let stderr = bf.next_line().await.unwrap();
 
-                    cmd_bursts.lock().unwrap().push(Burst {
-                        timestamp: Instant::now(),
-                        stdout: String::new(),
-                        stderr,
-                    });
+                    if let Some(stderr) = stderr {
+                        cmd_bursts.lock().unwrap().push(Burst {
+                            timestamp: Instant::now(),
+                            stdout: String::new(),
+                            stderr,
+                        });
+                    } else {
+                        break;
+                    }
                 }
             },
             || {},
         );
-
         loop {
             terminal.draw(|frame| {
                 let binding = cmd_bursts.lock().unwrap();
@@ -97,6 +105,12 @@ async fn main() -> Result<()> {
                         Cow::Borrowed(&b.stderr),
                     ])
                 });
+                use crate::helper::StringExt;
+                let footer = match cmd.try_wait().unwrap() {
+                    Some(exit_code) => format!("Exited with code {}", exit_code),
+                    None => "Running".to_owned(),
+                }
+                .surround_with_space();
                 let widths = [
                     Constraint::Length(10),
                     Constraint::Fill(1),
@@ -117,6 +131,10 @@ async fn main() -> Result<()> {
                     .block(
                         Block::bordered()
                             .title(Title::from(" Outputter ").alignment(Alignment::Center))
+                            .title(
+                                Title::from(s.remaining().to_string()).alignment(Alignment::Right),
+                            )
+                            .title_bottom(Line::from(footer).alignment(Alignment::Center))
                             .border_set(border::THICK),
                     )
                     // The selected row and its content can also be styled.
