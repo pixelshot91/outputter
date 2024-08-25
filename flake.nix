@@ -14,6 +14,19 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+        app = pkgs.rustPlatform.buildRustPackage {
+          pname = "outputter";
+          version = "0.0.1";
+          src = ./.;
+          # cargoBuildFlags = "-p app";
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+        };
       in
       {
         devShells.default = with pkgs; mkShell {
@@ -24,6 +37,7 @@
           shellHook = ''
           '';
         };
+        packages.default = app;
       }
     );
 }

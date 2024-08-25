@@ -2,6 +2,13 @@
 
 Given a command to run, `Outputter` will display its output stream (`stdout` and `stderr`) in an interractive TUI.
 
+## How to run
+Just run
+```shell
+$ nix run github:pixelshot91/outputter -- echo a
+```
+or replace `echo a` with any command you want.
+
 ## Demo
 1. This project is package with Nix Flakes. You can use `nix develop` to drop into a shell with all the necessary dependency (for now, just the Rust toolchain).
 ```shell
