@@ -7,6 +7,15 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
+  nixConfig = {
+    extra-substituters = [
+      "https://pixelshot91.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "pixelshot91.cachix.org-1:O8B5CDQjnT3ap04ZNo0DxESHLXKJqEPMe+GX6QvptYs="
+    ];
+  };
+
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
